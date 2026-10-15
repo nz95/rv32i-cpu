@@ -1,4 +1,6 @@
-module cpu (
+module cpu #(
+	parameter MEM_FILE = "programs/test_program.hex"
+)(
 	input logic clk,
 	input logic rst
 );
@@ -77,7 +79,9 @@ module cpu (
 		.pc(pc_current)
 	);
 
-	instruction_memory u_instruction_memory (
+	instruction_memory #(
+		.MEM_FILE(MEM_FILE)
+	) u_instruction_memory (
 		.addr(pc_current),
 		.instruction(instruction)
 	);

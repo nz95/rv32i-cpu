@@ -1,4 +1,6 @@
-module instruction_memory (
+module instruction_memory #(
+	parameter MEM_FILE = "programs/test_program.hex"
+)(
 	input logic [31:0] addr,
 	output logic [31:0] instruction
 );
@@ -6,7 +8,7 @@ module instruction_memory (
 	logic [31:0] memory [0:255];
 
 	initial begin
-		$readmemh("programs/test_program.hex", memory);
+		$readmemh(MEM_FILE, memory);
 	end
 
 	always_comb begin
