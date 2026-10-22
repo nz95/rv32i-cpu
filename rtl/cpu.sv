@@ -153,6 +153,7 @@ module cpu #(
 	data_memory u_data_memory (
 		.clk(clk),
 		.mem_write(mem_write_enable),
+		.funct3(instruction[14:12]),
 		.addr(alu_result),
 		.write_data(read_data2),
 		.read_data(memory_read_data)

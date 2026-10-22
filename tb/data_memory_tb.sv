@@ -4,6 +4,7 @@ module data_memory_tb;
 
 	logic clk;
 	logic mem_write;
+	logic [2:0] funct3;
 	logic [31:0] addr;
 	logic [31:0] write_data;
 	logic [31:0] read_data;
@@ -14,6 +15,7 @@ module data_memory_tb;
 	data_memory dut (
 		.clk(clk),
 		.mem_write(mem_write),
+		.funct3(funct3),
 		.addr(addr),
 		.write_data(write_data),
 		.read_data(read_data)
@@ -21,11 +23,33 @@ module data_memory_tb;
 
 	always #5 clk = ~clk;
 
-	task check_read;
-		input [31:0] expected;
-		input [8*30-1:0] test_name;
+	task write_memory;
+		input [31:0] test_addr;
+		input [31:0] test_data;
+		input [2:0] test_funct3;
 
 		begin
+			addr = test_addr;
+			write_data = test_data;
+			funct3 = test_funct3;
+			mem_write = 1'b1;
+
+			@(posedge clk);
+			#1;
+
+			mem_write = 1'b0;
+		end
+	endtask
+
+	task check_read;
+		input [31:0] test_addr;
+		input [2:0] test_funct3;
+		input [31:0] expected;
+		input [8*40-1:0] test_name;
+
+		begin
+			addr = test_addr;
+			funct3 = test_funct3;
 			#1;
 
 			if (read_data !== expected) begin
@@ -41,73 +65,231 @@ module data_memory_tb;
 		end
 	endtask
 
+	task check_memory;
+		input [7:0] word_index;
+		input [31:0] expected;
+		input [8*40-1:0] test_name;
+
+		begin
+			if (dut.memory[word_index] !== expected) begin
+				$display("FAIL: %0s", test_name);
+				$display("  expected = %h", expected);
+				$display("  actual   = %h", dut.memory[word_index]);
+				fail_count = fail_count + 1;
+			end
+			else begin
+				$display("PASS: %0s", test_name);
+				pass_count = pass_count + 1;
+			end
+		end
+	endtask
+
 	initial begin
 
 		clk = 0;
 		mem_write = 0;
+		funct3 = 0;
 		addr = 0;
 		write_data = 0;
 
 		pass_count = 0;
 		fail_count = 0;
 
-		// Test 1: write 42 to address 0x00
-		addr = 32'h00000000;
-		write_data = 32'd42;
-		mem_write = 1;
+		// ------------------------------------------------
+		// Start with:
+		//
+		// memory[0] = AABBCCDD
+		//
+		// address 0 -> DD
+		// address 1 -> CC
+		// address 2 -> BB
+		// address 3 -> AA
+		// ------------------------------------------------
 
-		@(posedge clk);
-		#1;
+		write_memory(
+			32'h00000000,
+			32'hAABBCCDD,
+			3'b010
+		);
 
-		mem_write = 0;
-		check_read(32'd42, "write and read address 0x00");
+		check_memory(
+			8'd0,
+			32'hAABBCCDD,
+			"SW writes full word"
+		);
 
-		// Test 2: write 99 to address 0x04
-		addr = 32'h00000004;
-		write_data = 32'd99;
-		mem_write = 1;
+		// LB
+		check_read(
+			32'h00000000,
+			3'b000,
+			32'hFFFFFFDD,
+			"LB address 0"
+		);
 
-		@(posedge clk);
-		#1;
+		check_read(
+			32'h00000001,
+			3'b000,
+			32'hFFFFFFCC,
+			"LB address 1"
+		);
 
-		mem_write = 0;
-		check_read(32'd99, "write and read address 0x04");
+		check_read(
+			32'h00000002,
+			3'b000,
+			32'hFFFFFFBB,
+			"LB address 2"
+		);
 
-		// Test 3: verify address 0x00 still contains 42
-		addr = 32'h00000000;
-		check_read(32'd42, "multiple addresses preserved");
+		check_read(
+			32'h00000003,
+			3'b000,
+			32'hFFFFFFAA,
+			"LB address 3"
+		);
 
-		// Test 4: disabled write should not change memory
-		addr = 32'h00000004;
-		write_data = 32'd1234;
-		mem_write = 0;
+		// LBU
+		check_read(
+			32'h00000000,
+			3'b100,
+			32'h000000DD,
+			"LBU address 0"
+		);
 
-		@(posedge clk);
-		#1;
+		check_read(
+			32'h00000001,
+			3'b100,
+			32'h000000CC,
+			"LBU address 1"
+		);
 
-		check_read(32'd99, "disabled write");
+		check_read(
+			32'h00000002,
+			3'b100,
+			32'h000000BB,
+			"LBU address 2"
+		);
 
-		// Test 5: overwrite address 0x00
-		addr = 32'h00000000;
-		write_data = 32'd77;
-		mem_write = 1;
+		check_read(
+			32'h00000003,
+			3'b100,
+			32'h000000AA,
+			"LBU address 3"
+		);
 
-		@(posedge clk);
-		#1;
+		// LH
+		check_read(
+			32'h00000000,
+			3'b001,
+			32'hFFFFCCDD,
+			"LH lower halfword"
+		);
 
-		mem_write = 0;
-		check_read(32'd77, "overwrite address 0x00");
+		check_read(
+			32'h00000002,
+			3'b001,
+			32'hFFFFAABB,
+			"LH upper halfword"
+		);
 
-		// Test 6: write to another word address
-		addr = 32'h00000018;
-		write_data = 32'hDEADBEEF;
-		mem_write = 1;
+		// LHU
+		check_read(
+			32'h00000000,
+			3'b101,
+			32'h0000CCDD,
+			"LHU lower halfword"
+		);
 
-		@(posedge clk);
-		#1;
+		check_read(
+			32'h00000002,
+			3'b101,
+			32'h0000AABB,
+			"LHU upper halfword"
+		);
 
-		mem_write = 0;
-		check_read(32'hDEADBEEF, "write address 0x18");
+		// LW
+		check_read(
+			32'h00000000,
+			3'b010,
+			32'hAABBCCDD,
+			"LW full word"
+		);
+
+		// ------------------------------------------------
+		// SB test
+		//
+		// AABBCCDD
+		//    ^^
+		// replace BB with 55
+		//
+		// expected = AA55CCDD
+		// ------------------------------------------------
+
+		write_memory(
+			32'h00000002,
+			32'h00000055,
+			3'b000
+		);
+
+		check_memory(
+			8'd0,
+			32'hAA55CCDD,
+			"SB preserves other bytes"
+		);
+
+		// ------------------------------------------------
+		// SH lower half
+		//
+		// AA55CCDD -> AA551234
+		// ------------------------------------------------
+
+		write_memory(
+			32'h00000000,
+			32'h00001234,
+			3'b001
+		);
+
+		check_memory(
+			8'd0,
+			32'hAA551234,
+			"SH lower halfword"
+		);
+
+		// ------------------------------------------------
+		// SH upper half
+		//
+		// AA551234 -> BEEF1234
+		// ------------------------------------------------
+
+		write_memory(
+			32'h00000002,
+			32'h0000BEEF,
+			3'b001
+		);
+
+		check_memory(
+			8'd0,
+			32'hBEEF1234,
+			"SH upper halfword"
+		);
+
+		// Verify next word uses a different memory entry
+		write_memory(
+			32'h00000004,
+			32'h11223344,
+			3'b010
+		);
+
+		check_memory(
+			8'd1,
+			32'h11223344,
+			"SW address 4 writes memory word 1"
+		);
+
+		check_memory(
+			8'd0,
+			32'hBEEF1234,
+			"word 0 preserved"
+		);
 
 		$display("");
 		$display("Tests passed: %0d", pass_count);
