@@ -90,6 +90,14 @@ module pipelined_cpu #(
 
 	logic [31:0] write_data_wb;
 
+	logic [1:0] forward_a;
+	logic [1:0] forward_b;
+
+	logic [31:0] forwarded_rs1_ex;
+	logic [31:0] forwarded_rs2_ex;
+
+	logic [31:0] forward_data_mem;
+
 	pc u_pc (
                 .clk(clk),
                 .rst(rst),
@@ -209,22 +217,19 @@ module pipelined_cpu #(
         always_comb begin
                 case (alu_src_a_ex)
                         ALU_A_RS1:
-                                alu_operand_a_ex = read_data1_ex;
-
+                                alu_operand_a_ex = forwarded_rs1_ex;
                         ALU_A_PC:
                                 alu_operand_a_ex = pc_ex;
-
                         ALU_A_ZERO:
                                 alu_operand_a_ex = 32'd0;
-
                         default:
-                                alu_operand_a_ex = read_data1_ex;
+                                alu_operand_a_ex = forwarded_rs1_ex;
                 endcase
 
                 if (alu_src_b_ex)
                         alu_operand_b_ex = immediate_ex;
                 else
-                        alu_operand_b_ex = read_data2_ex;
+                        alu_operand_b_ex = forwarded_rs2_ex;
         end
 
         alu u_alu (
@@ -235,8 +240,8 @@ module pipelined_cpu #(
         );
 
         branch_comparator u_branch_comparator (
-                .a(read_data1_ex),
-                .b(read_data2_ex),
+                .a(forwarded_rs1_ex),
+                .b(forwarded_rs2_ex),
                 .funct3(funct3_ex),
                 .branch_taken(branch_taken_ex)
         );
@@ -247,7 +252,7 @@ module pipelined_cpu #(
 		.enable(1'b1),
 		.flush(1'b0),
 		.alu_result_in(alu_result_ex),
-		.store_data_in(read_data2_ex),
+		.store_data_in(forwarded_rs2_ex),
 		.pc_plus4_in(pc_plus4_ex),
 		.rd_in(rd_ex),
 		.funct3_in(funct3_ex),
@@ -266,7 +271,7 @@ module pipelined_cpu #(
 
 	assign pc_plus4_ex = pc_ex + 32'd4;
 	assign pc_target_ex = pc_ex + immediate_ex;
-	assign jalr_target_ex = (read_data1_ex + immediate_ex) & 32'hFFFFFFFE;
+	assign jalr_target_ex = (forwarded_rs1_ex + immediate_ex) & 32'hFFFFFFFE;
 
 	data_memory u_data_memory (
                 .clk(clk),
@@ -312,5 +317,68 @@ module pipelined_cpu #(
 			end
 		endcase
 	end
+	
+	forwarding_unit u_forwarding_unit (
+		.rs1_ex(rs1_ex),
+		.rs2_ex(rs2_ex),
+		.rd_mem(rd_mem),
+		.reg_write_mem(reg_write_mem),
+		.rd_wb(rd_wb),
+		.reg_write_wb(reg_write_wb),
+		.forward_a(forward_a),
+		.forward_b(forward_b)
+	);
+
+	always_comb begin
+		case(forward_a)
+			2'b00: begin
+				forwarded_rs1_ex = read_data1_ex;
+			end
+			2'b01: begin
+                                forwarded_rs1_ex = write_data_wb;
+                        end
+			2'b10: begin
+                                forwarded_rs1_ex = forward_data_mem;
+                        end
+			default: begin
+				forwarded_rs1_ex = read_data1_ex;
+			end
+		endcase
+	end
+
+	always_comb begin
+		case(forward_b)
+			2'b00: begin
+				forwarded_rs2_ex = read_data2_ex;
+			end
+			2'b01: begin
+                                forwarded_rs2_ex = write_data_wb;
+                        end
+			2'b10: begin
+                                forwarded_rs2_ex = forward_data_mem;
+                        end
+			default: begin
+				forwarded_rs2_ex = read_data2_ex;
+			end
+		endcase
+	end
+
+	always_comb begin
+		case(result_src_mem)
+			2'b00: begin
+				forward_data_mem = alu_result_mem;
+			end
+			2'b01: begin
+				forward_data_mem = 32'd0;
+			end
+			2'b10: begin
+				forward_data_mem = pc_plus4_mem;
+			end
+			default: begin
+				forward_data_mem = alu_result_mem;
+			end
+		endcase
+	end
+
 endmodule
 
