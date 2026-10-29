@@ -4,6 +4,9 @@ module hazard_unit (
 	input logic [4:0] rs1_id,
 	input logic [4:0] rs2_id,
 
+	input logic uses_rs1_id,
+	input logic uses_rs2_id,
+
 	input logic [4:0] rd_ex,
 	input logic [1:0] result_src_ex,
 
@@ -13,7 +16,7 @@ module hazard_unit (
 );
 
 	always_comb begin
-		if (result_src_ex == 2'b01 && rd_ex != 5'd0 && (rd_ex == rs1_id || rd_ex == rs2_id)) begin
+		if (result_src_ex == 2'b01 && rd_ex != 5'd0 && (rd_ex == rs1_id && rd_ex == rs1_id) || (uses_rs2_id && rd_ex == rs2_id)) begin
 			pc_enable = 0;
 			if_id_enable = 0;
 			id_ex_flush = 1;

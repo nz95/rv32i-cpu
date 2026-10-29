@@ -109,6 +109,12 @@ module pipelined_cpu #(
 
 	logic hazard_id_ex_flush;
 
+	logic [31:0] read_data1_id_bypass;
+	logic [31:0] read_data2_id_bypass;
+
+	logic uses_rs1_id;
+	logic uses_rs2_id;
+
 	pc u_pc (
                 .clk(clk),
                 .rst(rst),
@@ -180,8 +186,8 @@ module pipelined_cpu #(
 		.enable(1'b1),
 		.flush(id_ex_flush),
 		.pc_in(pc_id),
-		.read_data1_in(read_data1_id),
-		.read_data2_in(read_data2_id),
+		.read_data1_in(read_data1_id_bypass),
+		.read_data2_in(read_data2_id_bypass),
 		.immediate_in(immediate_id),
 		.rs1_in(rs1_id),
 		.rs2_in(rs2_id),
@@ -396,6 +402,8 @@ module pipelined_cpu #(
 	hazard_unit u_hazard_unit (
 		.rs1_id(rs1_id),
 		.rs2_id(rs2_id),
+		.uses_rs1_id(uses_rs1_id),
+		.uses_rs2_id(uses_rs2_id),
 		.rd_ex(rd_ex),
 		.result_src_ex(result_src_ex),
 		.pc_enable(pc_enable),
@@ -405,6 +413,9 @@ module pipelined_cpu #(
 
 	assign control_redirect_ex = jalr_ex || jump_ex || (branch_ex && branch_taken_ex); 
 	assign control_target_ex = jalr_ex ? jalr_target_ex : pc_target_ex;
+
+	assign read_data1_id_bypass = (reg_write_wb && rd_wb != 5'd0 && rd_wb == rs1_id) ? write_data_wb : read_data1_id;
+	assign read_data2_id_bypass = (reg_write_wb && rd_wb != 5'd0 && rd_wb == rs2_id) ? write_data_wb : read_data2_id;
 
 endmodule
 
