@@ -104,6 +104,11 @@ module pipelined_cpu #(
 
 	logic [31:0] pc_next;
 
+	logic control_redirect_ex;
+	logic [31:0] control_target_ex;
+
+	logic hazard_id_ex_flush;
+
 	pc u_pc (
                 .clk(clk),
                 .rst(rst),
@@ -112,7 +117,7 @@ module pipelined_cpu #(
         );
 
 	assign pc_plus4_if = pc_if + 32'd4;
-	assign pc_next = pc_enable ? pc_plus4_if : pc_if;
+	assign pc_next = control_redirect_ex ? control_target_ex : pc_enable ? pc_plus4_if : pc_if;
 
         instruction_memory #(
                 .MEM_FILE(MEM_FILE)
@@ -125,7 +130,7 @@ module pipelined_cpu #(
 		.clk(clk),
 		.rst(rst),
 		.enable(if_id_enable),
-		.flush(1'b0),
+		.flush(control_redirect_ex),
 		.pc_in(pc_if),
 		.instruction_in(instruction_if),
 		.pc_out(pc_id),
@@ -167,12 +172,13 @@ module pipelined_cpu #(
                 .read_data2(read_data2_id)
         );
 
+	assign id_ex_flush = hazard_id_ex_flush || control_redirect_ex;
+
 	id_ex_reg u_id_ex_reg (
 		.clk(clk),
 		.rst(rst),
 		.enable(1'b1),
 		.flush(id_ex_flush),
-
 		.pc_in(pc_id),
 		.read_data1_in(read_data1_id),
 		.read_data2_in(read_data2_id),
@@ -394,8 +400,11 @@ module pipelined_cpu #(
 		.result_src_ex(result_src_ex),
 		.pc_enable(pc_enable),
 		.if_id_enable(if_id_enable),
-		.id_ex_flush(id_ex_flush)
+		.id_ex_flush(hazard_id_ex_flush)
 	);
+
+	assign control_redirect_ex = jalr_ex || jump_ex || (branch_ex && branch_taken_ex); 
+	assign control_target_ex = jalr_ex ? jalr_target_ex : pc_target_ex;
 
 endmodule
 
