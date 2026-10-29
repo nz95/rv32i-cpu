@@ -98,14 +98,21 @@ module pipelined_cpu #(
 
 	logic [31:0] forward_data_mem;
 
+	logic pc_enable;
+	logic if_id_enable;
+	logic id_ex_flush;
+
+	logic [31:0] pc_next;
+
 	pc u_pc (
                 .clk(clk),
                 .rst(rst),
-                .next_pc(pc_plus4_if),
+                .next_pc(pc_next),
                 .pc(pc_if)
         );
 
 	assign pc_plus4_if = pc_if + 32'd4;
+	assign pc_next = pc_enable ? pc_plus4_if : pc_if;
 
         instruction_memory #(
                 .MEM_FILE(MEM_FILE)
@@ -117,7 +124,7 @@ module pipelined_cpu #(
 	if_id_reg u_if_id_reg (
 		.clk(clk),
 		.rst(rst),
-		.enable(1'b1),
+		.enable(if_id_enable),
 		.flush(1'b0),
 		.pc_in(pc_if),
 		.instruction_in(instruction_if),
@@ -164,7 +171,7 @@ module pipelined_cpu #(
 		.clk(clk),
 		.rst(rst),
 		.enable(1'b1),
-		.flush(1'b0),
+		.flush(id_ex_flush),
 
 		.pc_in(pc_id),
 		.read_data1_in(read_data1_id),
@@ -379,6 +386,16 @@ module pipelined_cpu #(
 			end
 		endcase
 	end
+
+	hazard_unit u_hazard_unit (
+		.rs1_id(rs1_id),
+		.rs2_id(rs2_id),
+		.rd_ex(rd_ex),
+		.result_src_ex(result_src_ex),
+		.pc_enable(pc_enable),
+		.if_id_enable(if_id_enable),
+		.id_ex_flush(id_ex_flush)
+	);
 
 endmodule
 
