@@ -1,10 +1,14 @@
 `timescale 1ns/1ps
 
 module pipelined_cpu #(
-	parameter MEM_FILE = "programs/test_program.hex"
+	parameter MEM_FILE = "programs/test_program.mem"
 )(
 	input logic clk,
-	input logic rst
+	input logic rst,
+	output logic [31:0] debug_pc,
+	output logic [31:0] debug_wb_data,
+	output logic [4:0] debug_wb_rd,
+	output logic debug_wb_we
 );
 
 	logic [31:0] pc_plus4_if;
@@ -416,6 +420,11 @@ module pipelined_cpu #(
 
 	assign read_data1_id_bypass = (reg_write_wb && rd_wb != 5'd0 && rd_wb == rs1_id) ? write_data_wb : read_data1_id;
 	assign read_data2_id_bypass = (reg_write_wb && rd_wb != 5'd0 && rd_wb == rs2_id) ? write_data_wb : read_data2_id;
+	
+	assign debug_pc = pc_if;
+	assign debug_wb_data = write_data_wb;
+	assign debug_wb_rd = rd_wb;
+	assign debug_wb_we = reg_write_wb;
 
 endmodule
 
